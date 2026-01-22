@@ -20,11 +20,11 @@ export default function ProfileScreen() {
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) {
-          router.replace("/(auth)/sign-in"); 
+          router.replace("/(auth)/sign-in");
           return;
         }
 
-        const res = await fetch("http://82.112.238.44:8005/users/me", {
+        const res = await fetch("https://sunvoracrm.berisphere.com/users/me", {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -33,8 +33,8 @@ export default function ProfileScreen() {
 
         if (!res.ok) throw new Error("Failed to fetch user data");
 
-        const data: UserData = await res.json();
-        setUserData(data);
+        const json = await res.json();
+        setUserData(json.data);
       } catch (err) {
         console.log("Error fetching user:", err);
       } finally {
@@ -66,15 +66,15 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.topHeader}>
-              <TouchableOpacity
-                onPress={() => router.push("/(drawer)")}
-                style={{ marginRight: 12 }}
-              >
-                <Ionicons name="menu" size={28} color="#333" />
-              </TouchableOpacity>
-              <Text style={styles.dashboardTitle}>Simplify</Text>
-              <Ionicons name="notifications-outline" size={24} color="#333" />
-            </View>
+        <TouchableOpacity
+          onPress={() => router.push("/(drawer)")}
+          style={{ marginRight: 12 }}
+        >
+          <Ionicons name="menu" size={28} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.dashboardTitle}>Simplify</Text>
+        <Ionicons name="notifications-outline" size={24} color="#333" />
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Personal Details</Text>

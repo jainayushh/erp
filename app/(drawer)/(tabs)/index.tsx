@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
+
 import {
   Dimensions,
   ScrollView,
@@ -14,7 +16,40 @@ import 'react-native-gesture-handler';
 const { width } = Dimensions.get("window");
 
 export default function DashboardScreen() {
+  const [userName, setUserName] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+  const loadUser = async () => {
+    const token = await AsyncStorage.getItem("token");
+    if (!token) return;
+
+    const res = await fetch(
+      "https://sunvoracrm.berisphere.com/users/me",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (!res.ok) return;
+
+    const json = await res.json();
+
+    const firstName = json?.data?.personal_details?.first_name;
+    const lastName = json?.data?.personal_details?.last_name;
+
+    if (firstName && lastName) {
+      setUserName(`${firstName} ${lastName}`);
+    } else {
+      setUserName("User");
+    }
+  };
+
+  loadUser();
+}, []);
+
+
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Top Header */}
@@ -33,7 +68,7 @@ export default function DashboardScreen() {
       {/* Welcome Card */}
       <View style={styles.welcomeCard}>
         <Text style={styles.welcomeText}>Welcome back,</Text>
-        <Text style={styles.welcomeUser}>Admin User</Text>
+        <Text style={styles.welcomeUser}>{userName || "Loading..."}</Text>
         <Text style={styles.welcomeSub}>
           Here's what's happening with your business today.
         </Text>

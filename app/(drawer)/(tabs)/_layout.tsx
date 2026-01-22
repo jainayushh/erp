@@ -9,7 +9,8 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: "#fff",
           height: 60,
-          paddingBottom: 6,
+          marginBottom: 5,
+          paddingBottom: 10,
           paddingTop: 6,
           borderTopWidth: 0.4,
           borderTopColor: "#ddd",
@@ -69,6 +70,19 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+  name="crm/lead"
+  options={{
+    href: null, // 👈 hides from tab bar
+  }}
+/>
+
+<Tabs.Screen
+  name="profile"
+  options={{
+    href: null, // 👈 hides from tab bar
+  }}
+/>
     </Tabs>
   );
 }

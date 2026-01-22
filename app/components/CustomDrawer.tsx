@@ -1,116 +1,178 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import { Href, router } from "expo-router";
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import "react-native-reanimated";
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { AuthContext } from "../../context/AuthContext";
+import React, { useEffect, useState, useContext } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 
-
+// ❌ Removed user from props
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
-
 export default function Sidebar({ open, onClose }: SidebarProps) {
-  console.log("Sidebar open state:", open);
+  const [crmOpen, setCrmOpen] = useState(false);
+  const [hrmsOpen, setHrmsOpen] = useState(false);
+  const { setAuthenticated } = useContext(AuthContext);
+  // ✅ Only one user state
+  const [user, setUser] = useState({ name: "", email: "" });
+
   const animatedStyles = useAnimatedStyle(() => ({
-    transform: [{ translateX: withTiming(open ? 0 : -260, { duration: 300 }) }],
+    transform: [
+      { translateX: withTiming(open ? 0 : -260, { duration: 300 }) },
+    ],
   }));
 
   const goTo = (path: Href) => {
-    onClose(); // close drawer first
-    router.push(path); // navigate
+    onClose();
+    router.push(path);
   };
+
+  // 🟢 Fetch user from API
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+
+        if (!token) {
+          console.log("No token found");
+          return;
+        }
+
+        const res = await axios.get("https://sunvoracrm.berisphere.com/users/me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        console.log("API RESPONSE:", res.data); // DEBUG LOG
+
+        const personal = res.data?.data?.personal_details;
+
+        if (!personal) {
+          console.log("❌ personal_details not found");
+          return;
+        }
+
+        setUser({
+          name: `${personal.first_name || ""} ${personal.last_name || ""}`.trim(),
+          email: personal.email || "No Email",
+        });
+
+        await AsyncStorage.setItem("user", JSON.stringify(personal));
+
+
+      } catch (error) {
+        console.log("Error fetching user:", error);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   return (
     <>
       {open && <TouchableOpacity style={styles.overlay} onPress={onClose} />}
 
       <Animated.View style={[styles.sidebar, animatedStyles]}>
-        <TouchableOpacity
-    onPress={onClose}
-    style={{
-      position: "absolute",
-      top: 20,
-      right: 10,
-      padding: 8,
-      zIndex: 1000,
-    }}
-  >
-    <Ionicons name="close" size={26} color="#333" />
-  </TouchableOpacity>
-        <Text style={styles.title}>Simplify</Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <Ionicons name="close" size={26} color="#333" />
+        </TouchableOpacity>
+
+        <Text style={styles.title}>Sunvore ERP</Text>
         <View style={styles.divider} />
-        <View style={styles.menuGroup}>
-          <SidebarItem
-            icon="home-outline"
-            label="Dashboard"
-            onPress={() => goTo("/(drawer)/(tabs)")}
-          />
 
-          <SidebarItem
-            icon="people-outline"
-            label="HRMS"
-            onPress={() => goTo("/(drawer)/(tabs)/hrms")}
-          />
+        {/* USER INFO */}
+        <TouchableOpacity
+          onPress={() => {
+            onClose();
+            router.push("/(drawer)/(tabs)/profile");
+          }}
+        >
+          <Text style={styles.userText}>{user.name}</Text>
+          <Text style={styles.email}>{user.email}</Text>
+        </TouchableOpacity>
 
-          <SidebarItem
-            icon="cash-outline"
-            label="Finance"
-            onPress={() => goTo("/(drawer)/(tabs)/finance")}
-          />
+        <View style={styles.divider} />
 
-          <SidebarItem
-            icon="cube-outline"
-            label="Inventory"
-            onPress={() => goTo("/(drawer)/(tabs)/inventory")}
-          />
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}>
+          <SidebarItem icon="home-outline" label="Dashboard" onPress={() => goTo("/(drawer)/(tabs)")} />
+          {/* HRMS */}
+          <TouchableOpacity
+            style={styles.item}
+            onPress={() => setHrmsOpen(!hrmsOpen)}
+          >
+            <View style={styles.row}>
+              <Ionicons name="people-outline" size={20} color="#555" />
+              <Text style={styles.itemText}>HRMS</Text>
+            </View>
+            <Ionicons
+              name={hrmsOpen ? "chevron-down" : "chevron-forward"}
+              size={16}
+              color="#999"
+            />
+          </TouchableOpacity>
 
-          <SidebarItem
-            icon="briefcase-outline"
-            label="Project Mgmt"
-            onPress={() => goTo("/(drawer)/(tabs)/more")} // example
-          />
+          {hrmsOpen && (
+            <View style={styles.submenu}>
+              <SubItem
+                label="Leave Management"
+                onPress={() => goTo("/(drawer)/(tabs)/hrms/leave")}
+              />
+            </View>
+          )}
 
-          <SidebarItem
-            icon="chatbubbles-outline"
-            label="CRM"
-            onPress={() => goTo("/(tabs)/crm")} // if you create crm.tsx
-          />
+          {/* <SidebarItem icon="cash-outline" label="Finance" onPress={() => goTo("/(drawer)/(tabs)/finance")} /> */}
 
-          <SidebarItem
-            icon="trending-up-outline"
-            label="Sales"
-            onPress={() => goTo("/(tabs)/sales")} // example
-          />
+          {/* CRM */}
+          <TouchableOpacity style={styles.item} onPress={() => setCrmOpen(!crmOpen)}>
+            <View style={styles.row}>
+              <Ionicons name="chatbubbles-outline" size={20} color="#555" />
+              <Text style={styles.itemText}>CRM</Text>
+            </View>
+            <Ionicons name={crmOpen ? "chevron-down" : "chevron-forward"} size={16} color="#999" />
+          </TouchableOpacity>
 
-          <SidebarItem
-            icon="stats-chart-outline"
-            label="Reports"
-            onPress={() => goTo("/(tabs)/reports")} // example
-          />
-        </View>
+          {crmOpen && (
+            <View style={styles.submenu}>
+              <SubItem label="Lead Management" onPress={() => goTo("/(drawer)/(tabs)/crm/lead")} />
+              <SubItem label="Quotation" onPress={() => goTo("/components/Quotations")} />
+            </View>
+          )}
 
+          {/* <SidebarItem icon="stats-chart-outline" label="Reports" onPress={() => goTo("/(drawer)/(tabs)/reports")} /> */}
+        </ScrollView>
+
+        {/* FOOTER */}
         <View style={styles.footer}>
           <View style={styles.divider} />
-          <TouchableOpacity
-  onPress={() => {
-    onClose();
-    router.push("/(drawer)/(tabs)/profile")
-  }} 
-  style={{ marginBottom: 10 }}
->
-  <Text style={styles.user}>Admin User</Text>
-  <Text style={styles.email}>admin@simplify.com</Text>
-</TouchableOpacity>
-
           <View style={styles.btnRow}>
-            <TouchableOpacity style={styles.btn}>
-              <Text>Settings</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.btn}><Text>Settings</Text></TouchableOpacity>
+            <TouchableOpacity
+              style={styles.btn}
+              onPress={async () => {
+                await AsyncStorage.multiRemove([
+                  "token",
+                  "isLoggedIn",
+                  "loginAt",
+                ]);
 
-            <TouchableOpacity style={styles.btn}>
+                setAuthenticated(false);
+                router.replace("/(auth)/sign-in");
+              }}
+            >
               <Text>Logout</Text>
             </TouchableOpacity>
           </View>
@@ -120,20 +182,24 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   );
 }
 
-// ✔ Menu Item with navigation
-const SidebarItem = ({ icon, label, onPress }: {
-  icon: string;
-  label: string;
-  onPress: () => void;
-}) => (
+const SidebarItem = ({ icon, label, onPress }) => (
   <TouchableOpacity style={styles.item} onPress={onPress}>
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
+    <View style={styles.row}>
       <Ionicons name={icon} size={20} color="#555" />
       <Text style={styles.itemText}>{label}</Text>
     </View>
     <Ionicons name="chevron-forward" size={16} color="#999" />
   </TouchableOpacity>
 );
+
+const SubItem = ({ label, onPress }) => (
+  <TouchableOpacity style={styles.subItem} onPress={onPress}>
+    <Text style={styles.subItemText}>• {label}</Text>
+  </TouchableOpacity>
+);
+
+// styles unchanged...
+
 
 const styles = StyleSheet.create({
   overlay: {
@@ -150,21 +216,38 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingHorizontal: 15,
     elevation: 20,
-    zIndex: 999, 
+    zIndex: 999,
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 20,
+    right: 10,
+    padding: 6,
   },
   title: {
     fontSize: 22,
     fontWeight: "800",
-    marginBottom: 20,
+    marginBottom: 15,
   },
   divider: {
-  height: 1,
-  backgroundColor: "#ddd",
-  width: "100%",
-  marginBottom: 20,
-},
-  menuGroup: {
-    flex: 1,
+    height: 1,
+    backgroundColor: "#ddd",
+    width: "100%",
+    marginVertical: 15,
+  },
+  userText: {
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  email: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 3,
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   item: {
     paddingVertical: 14,
@@ -177,20 +260,27 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 16,
   },
+  submenu: {
+    backgroundColor: "#f9f9f9",
+    paddingLeft: 25,
+    paddingVertical: 5,
+  },
+  subItem: {
+    paddingVertical: 8,
+  },
+  subItemText: {
+    fontSize: 14,
+    color: "#444",
+  },
   footer: {
-    paddingVertical: 20,
-  },
-  user: {
-    fontWeight: "700",
-  },
-  email: {
-    fontSize: 12,
-    color: "#666",
+    position: "absolute",
+    bottom: 20,
+    left: 15,
+    right: 15,
   },
   btnRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 15,
   },
   btn: {
     paddingHorizontal: 12,
