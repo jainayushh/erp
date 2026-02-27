@@ -19,8 +19,10 @@ export default function TabsLayout() {
           fontSize: 11,
           fontWeight: "600",
         },
+        tabBarActiveTintColor: "#007bff",
       }}
     >
+      {/* HOME */}
       <Tabs.Screen
         name="index"
         options={{
@@ -31,8 +33,9 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* HRMS */}
       <Tabs.Screen
-        name="hrms"
+        name="hrms/leave"
         options={{
           tabBarLabel: "HRMS",
           tabBarIcon: ({ color }) => (
@@ -41,47 +44,59 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* LEAD MANAGEMENT */}
       <Tabs.Screen
-        name="finance"
+        name="crm/lead"
         options={{
-          tabBarLabel: "Finance",
+          tabBarLabel: "Leads",
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="attach-money" size={24} color={color} />
+            <MaterialIcons name="groups" size={22} color={color} />
+          ),
+        }}
+      />
+<Tabs.Screen name="profile" options={{ href: null }} />
+      {/* QUOTATION */}
+      <Tabs.Screen
+        name="Quotations"
+        options={{
+          tabBarLabel: "Quotation",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="document-text-outline" size={22} color={color} />
           ),
         }}
       />
 
+      {/* PROFILE */}
       <Tabs.Screen
-        name="inventory"
+        name="task"
         options={{
-          tabBarLabel: "Inventory",
+          tabBarLabel: "Task",
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="boxes" size={20} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="more"
-        options={{
-          tabBarLabel: "More",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="apps-outline" size={22} color={color} />
+            <Ionicons name="person-outline" size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-  name="crm/lead"
-  options={{
-    href: null, // 👈 hides from tab bar
-  }}
+  name="hrms"
+  options={{ href: null }}
+/>
+<Tabs.Screen
+  name="crm/client-details"
+  options={{ href: null }}
+/>
+      <Tabs.Screen
+  name="finance"
+  options={{ href: null }}
 />
 
 <Tabs.Screen
-  name="profile"
-  options={{
-    href: null, // 👈 hides from tab bar
-  }}
+  name="inventory"
+  options={{ href: null }}
+/>
+
+<Tabs.Screen
+  name="more"
+  options={{ href: null }}
 />
     </Tabs>
   );

@@ -115,19 +115,19 @@ export default function SuspectActivityModal({
     loadActivityOptions();
   }, [visible, leadType]);
 
-  const openDropdownAbove = (
-    ref: any,
-    type: "activity" | "followup"
-  ) => {
-    ref.current?.measure(
-      (_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
-        setDropdown({
-          type,
-          top: py - h * 4, // dropdown opens upward
-        });
-      }
-    );
-  };
+ const openDropdownBelow = (
+  ref: any,
+  type: "activity" | "followup"
+) => {
+  ref.current?.measure(
+    (_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
+      setDropdown({
+        type,
+        top: py + h + 5, // 👈 open BELOW field
+      });
+    }
+  );
+};
 
   const submit = async () => {
   if (!form.activity_type || !form.next_follow_up_activity) {
@@ -200,7 +200,7 @@ export default function SuspectActivityModal({
             ref={activityRef}
             style={styles.input}
             disabled={loadingOptions}
-            onPress={() => openDropdownAbove(activityRef, "activity")}
+            onPress={() => openDropdownBelow(activityRef, "activity")}
           >
             <Text style={styles.inputText}>
               {loadingOptions
@@ -227,7 +227,7 @@ export default function SuspectActivityModal({
             ref={followUpRef}
             style={styles.input}
             disabled={loadingOptions}
-            onPress={() => openDropdownAbove(followUpRef, "followup")}
+           onPress={() => openDropdownBelow(followUpRef, "followup")}
           >
             <Text style={styles.inputText}>
               {loadingOptions

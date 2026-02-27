@@ -4,6 +4,7 @@ import axios from "axios";
 import { router } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
+import { useLocalSearchParams } from "expo-router";
 
 import React, { useEffect, useState } from "react";
 import {
@@ -80,6 +81,18 @@ const api = axios.create({
   baseURL: BASE_URL,
 });
 
+const formatDateOnly = (date?: string) => {
+  if (!date) return "-";
+
+  const d = new Date(date.endsWith("Z") ? date : `${date}Z`);
+
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 // Add token automatically
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem("token");
@@ -92,7 +105,7 @@ api.interceptors.request.use(async (config) => {
 });
 
 export default function LeadScreen() {
-  const [tab, setTab] = useState("prospects");
+  const [tab, setTab] = useState("suspects");
   const [prospects, setProspects] = useState([]);
   const [clients, setClients] = useState([]);
   const [suspects, setSuspects] = useState([]);
@@ -117,7 +130,16 @@ export default function LeadScreen() {
   const [activityHistoryModal, setActivityHistoryModal] = useState(false);
   const [activityHistoryList, setActivityHistoryList] = useState([]);
   const [activityHistoryTitle, setActivityHistoryTitle] = useState("");
-
+  const [search, setSearch] = useState("");
+  const [showFilter, setShowFilter] = useState(false);
+  const [filterType, setFilterType] = useState<"None" | "Date" | "Activity">("None");
+  const { type, activity } = useLocalSearchParams();
+  const [activityOptions, setActivityOptions] = useState<
+    { label: string; value: string }[]
+  >([]);
+  const [showActivityDropdown, setShowActivityDropdown] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -128,7 +150,6 @@ export default function LeadScreen() {
     interested_in: "",
     suspect_lead_id: null,
   });
-
   const DEFAULT_CLIENT_VALUES = {
     plan: "basic",
     plan_cost: 0,
@@ -263,6 +284,82 @@ export default function LeadScreen() {
     </View>
   );
 
+  const loadActivityOptions = async () => {
+    try {
+      setLoadingOptions(true);
+      setActivityOptions([]);
+
+      let payload;
+
+      if (tab === "prospects") {
+        payload = {
+          module: "CRM",
+          category: "ProspectActivity",
+          is_active: true,
+        };
+      } else if (tab === "suspects") {
+        payload = {
+          module: "CRM",
+          category: "SuspectActivity",
+          is_active: true,
+        };
+      } else if (tab === "clients") {
+        payload = {
+          module: "CRM",
+          category: "ClientActivity",   // 👈 ADDED
+          is_active: true,
+        };
+      }
+
+      const res = await api.post("/misc/get", payload);
+
+      const list =
+        res.data?.data?.data?.map((item: any) => ({
+          label: item.label,
+          value: item.value,
+        })) || [];
+
+      setActivityOptions(list);
+      setShowActivityDropdown(true);
+    } catch (err: any) {
+      console.log("❌ Activity Option Error:", err.response?.data || err.message);
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  const applyFilters = (list: any[]) => {
+  let result = [...list];
+
+  // 🔎 SEARCH FILTER
+  if (search.trim()) {
+    const text = search.toLowerCase();
+
+    result = result.filter((item) =>
+      String(item.id).toLowerCase().includes(text) ||
+      item.name?.toLowerCase().includes(text) ||
+      item.phone?.toLowerCase().includes(text)
+    );
+  }
+
+  // 🎯 ACTIVITY FILTER (REAL FILTERING)
+  if (selectedActivity) {
+    result = result.filter(
+      (item) => item.latest_activity_type === selectedActivity
+    );
+  }
+
+  // 🔽 DATE SORT
+  if (filterType === "Date") {
+    result.sort(
+      (a, b) =>
+        new Date(b.latest_activity_date || 0).getTime() -
+        new Date(a.latest_activity_date || 0).getTime()
+    );
+  }
+
+  return result;
+};
 
 
   const callNumber = (phone: string) => {
@@ -402,24 +499,60 @@ export default function LeadScreen() {
 
 
 
+  const loadClients = async (activityType?: string) => {
+  try {
+    const payload: any = {
+      from_id: 1,
+      to_id: 99999,
+      assign_forward: false,
+    };
 
-  const loadClients = async () => {
-    try {
-      const res = await api.get(`/crm/get-lead/Client`);
-      setClients(res.data || []);
-    } catch (e) {
-      console.log("❌ Client Load Error:", e.response?.data || e.message);
+    if (activityType) {
+      payload.activity_type = activityType;
     }
-  };
 
-  const loadSuspects = async () => {
+    const res = await api.post("/crm/get-lead/Client", payload);
+
+    const raw = res.data?.data?.data || [];
+
+    const normalized = raw.map((c: any) => {
+      const latestActivity =
+        c.activities && c.activities.length
+          ? [...c.activities].sort(
+              (a, b) =>
+                new Date(b.activity_date).getTime() -
+                new Date(a.activity_date).getTime()
+            )[0]
+          : null;
+
+      return {
+        ...c,
+        latest_activity_type: latestActivity?.activity_type ?? null,
+        latest_activity_date: latestActivity?.activity_date ?? null,
+        next_follow_up: latestActivity?.next_follow_up ?? null,
+        assigned_user_name: `${c.assigned_user_first_name || ""} ${c.assigned_user_last_name || ""}`,
+        account_manager: `${c.assigned_user_first_name || ""} ${c.assigned_user_last_name || ""}`,
+      };
+    });
+
+    setClients(normalized);
+  } catch (e: any) {
+    console.log("❌ Client Load Error:", e.response?.data || e.message);
+  }
+};
+
+  const loadSuspects = async (activityType?: string) => {
     try {
-      const res = await api.post("/crm/get-lead/Suspect", {
+      const payload: any = {
         from_id: 1,
         to_id: 99999,
         assign_forward: false,
-      });
+      };
 
+      if (activityType) {
+        payload.activity_type = activityType;
+      }
+      const res = await api.post("/crm/get-lead/Suspect", payload);
       const raw = res.data?.data?.data || [];
 
       const normalized = raw.map((s) => {
@@ -469,7 +602,26 @@ export default function LeadScreen() {
       console.log("❌ Interest Options Error:", err);
     }
   };
+  const resetFilters = async () => {
+    setSearch("");
+    setFilterType("None");
+    setSelectedActivity(null);
+    setShowFilter(false);
+    setShowActivityDropdown(false);
 
+    // 🔥 Reload fresh data based on current tab
+    if (tab === "prospects") {
+      await loadProspects();
+    }
+
+    if (tab === "suspects") {
+      await loadSuspects();
+    }
+
+    if (tab === "clients") {
+      await loadClients();
+    }
+  };
   const loadReferredOptions = async () => {
     try {
       const res = await api.post("/misc/get", {
@@ -518,6 +670,51 @@ export default function LeadScreen() {
       return null;
     }
   };
+
+  useEffect(() => {
+    if (!type) return;
+
+    if (type === "Prospect") {
+      setTab("prospects");
+    } else if (type === "Suspect") {
+      setTab("suspects");
+    } else if (type === "Client") {
+      setTab("clients");
+    } else if (type === "All") {
+      setTab("suspects"); // default to prospects for now
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (activity && tab === "prospects") {
+      loadProspects(activity as string);
+    }
+  }, [activity]);
+  // useEffect(() => {
+  //   const loadLeads = async () => {
+  //     const token = await AsyncStorage.getItem("token");
+  //     if (!token) return;
+
+  //     const leadType = type === "All" ? "" : type;
+
+  //     const res = await fetch(
+  //       `${BASE_URL}/crm/get-lead/${leadType || "Prospect"}`,
+  //       {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //         body: JSON.stringify({}),
+  //       }
+  //     );
+
+  //     const json = await res.json();
+  //     console.log("Filtered Leads:", json);
+  //   };
+
+  //   loadLeads();
+  // }, [type]);
 
 
   useFocusEffect(
@@ -875,7 +1072,10 @@ export default function LeadScreen() {
 
   const TabButton = ({ title, keyName }) => (
     <TouchableOpacity
-      onPress={() => setTab(keyName)}
+      onPress={() => {
+        setTab(keyName);
+        resetFilters();
+      }}
       style={[
         styles.tabButton,
         tab === keyName && styles.activeTabButton,
@@ -935,6 +1135,7 @@ export default function LeadScreen() {
     return (
 
       <View style={styles.row}>
+        <Text style={styles.cell}>{item.id}</Text>
         <Text style={styles.cell}>{item.name}</Text>
         <View style={[styles.cell, styles.phoneCell]}>
           <Text>{item.phone}</Text>
@@ -1075,13 +1276,73 @@ export default function LeadScreen() {
     );
   };
 
-  const renderClient = ({ item }) => (
+  const renderClient = ({ item }: any) => (
     <View style={styles.row}>
       <Text style={styles.cell}>{item.id}</Text>
-      <Text style={styles.cell}>{item.name}</Text>
-      <Text style={styles.cell}>{item.company}</Text>
+      <TouchableOpacity
+        style={styles.cell}
+        onPress={() =>
+          router.push({
+            pathname: "/(drawer)/(tabs)/crm/client-details",
+            params: { id: item.id },
+          })
+        }
+      >
+        <Text style={{ color: "#1565c0", fontWeight: "700" }}>
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+      <Text style={styles.cell}>{item.city}</Text>
       <Text style={styles.cell}>{item.phone}</Text>
-      <Text style={styles.cell}>{item.status}</Text>
+
+      <Text style={styles.cell}>
+        {item.assigned_user_name || "-"}
+      </Text>
+
+      <Text style={styles.cell}>
+        {item.account_manager || "-"}
+      </Text>
+      <TouchableOpacity
+  style={styles.cell}
+  onPress={() => openActivityHistory(item, "Client")}
+  disabled={!item.activities?.length}
+>
+  {item.latest_activity_type ? (
+    <View
+      style={{
+        backgroundColor: "#e3f2fd",
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderRadius: 10,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: "700",
+          color: "#1565c0",
+          textTransform: "capitalize",
+        }}
+      >
+        {item.latest_activity_type.replaceAll("_", " ")}
+      </Text>
+
+      <Text style={{ fontSize: 10, marginTop: 2, color: "#555" }}>
+        {formatActivityDateTime(item.latest_activity_date)}
+      </Text>
+    </View>
+  ) : (
+    <Text style={{ color: "#999" }}>—</Text>
+  )}
+</TouchableOpacity>
+
+      <Text style={[styles.cell, { fontWeight: "700", color: "#2e7d32" }]}>
+        ₹ {Number(item.total_cost || 0).toLocaleString("en-IN")}
+      </Text>
+
+      <Text style={styles.cell}>
+        {formatDateOnly(item.created_on)}
+      </Text>
     </View>
   );
 
@@ -1289,8 +1550,117 @@ export default function LeadScreen() {
 
       </View>
 
+      {/* 🔍 SEARCH + FILTER */}
+      <View style={styles.searchRow}>
+        <TextInput
+          placeholder="Search by ID, Name, Phone"
+          value={search}
+          onChangeText={setSearch}
+          style={styles.searchInput}
+        />
+
+        <TouchableOpacity
+          style={[
+            styles.filterIcon,
+            showActivityDropdown && { opacity: 0.5 }
+          ]}
+          disabled={showActivityDropdown}   // 👈 disables clicking
+          onPress={() => setShowFilter(!showFilter)}
+        >
+          <Ionicons
+            name={showFilter ? "funnel" : "funnel-outline"}
+            size={22}
+            color={showFilter ? "#2563EB" : "#333"}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ marginLeft: 8 }}
+          onPress={resetFilters}
+        >
+          <Ionicons name="refresh" size={22} color="#d32f2f" />
+        </TouchableOpacity>
+      </View>
+
+
+      {showActivityDropdown && (
+        <View style={styles.activityDropdownBox}>
+          {loadingOptions ? (
+            <Text>Loading...</Text>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator>
+              {activityOptions.map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={styles.activityItem}
+                  onPress={async () => {
+                    setSelectedActivity(item.value);
+                    setShowActivityDropdown(false);
+
+                    if (tab === "prospects") {
+                      await loadProspects(item.value);
+                    }
+
+                    if (tab === "suspects") {
+                      await loadSuspects(item.value);
+                    }
+                    if (tab === "clients") {
+                      await loadClients(item.value);
+                    }
+                  }}
+                >
+                  <Text>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* FILTER DROPDOWN */}
+      {showFilter && (
+        <View style={styles.filterBox}>
+          <TouchableOpacity
+            onPress={() => {
+              setFilterType("Date");
+              setShowFilter(false);
+            }}
+          >
+            <Text style={styles.filterOption}>Date Wise</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              setFilterType("Activity");
+              setShowFilter(false);
+              loadActivityOptions();   // 🔥 load options on same screen
+            }}
+          >
+            <Text style={styles.filterOption}>Activity Wise</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ========== SUSPECTS ========== */}
       {tab === "suspects" && (
+        <>
+        <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+            {/* LEFT SIDE TEXT */}
+            <View style={{ maxWidth: "60%" }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#111" }}>
+                Suspect Leads
+              </Text>
+              <Text style={{ fontSize: 12, color: "#777", marginTop: 2 }}>
+                Converted and revenue generating leads
+              </Text>
+            </View>
+          </View>
         <ScrollView horizontal>
           <View>
             <View style={styles.headerRow}>
@@ -1301,12 +1671,13 @@ export default function LeadScreen() {
               <Text style={styles.header}>Action</Text>
             </View>
 
-            <FlatList data={suspects} renderItem={renderSuspect} 
-            keyExtractor={(item) => `suspect-${item.id}`}
-            refreshing={refreshing}
+            <FlatList data={applyFilters(suspects)} renderItem={renderSuspect}
+              keyExtractor={(item) => `suspect-${item.id}`}
+              refreshing={refreshing}
               onRefresh={onRefresh} />
           </View>
         </ScrollView>
+        </>
       )}
 
       {/* ========== PROSPECTS ========== */}
@@ -1348,6 +1719,7 @@ export default function LeadScreen() {
           <ScrollView horizontal>
             <View>
               <View style={styles.headerRow}>
+                <Text style={styles.header}>ID</Text> 
                 <Text style={styles.header}>Name</Text>
                 <Text style={styles.header}>Phone</Text>
                 <Text style={styles.header}>City</Text>
@@ -1359,10 +1731,10 @@ export default function LeadScreen() {
               </View>
 
               <FlatList
-                data={prospects}
+                data={applyFilters(prospects)}
                 keyExtractor={(item, index) =>
-  `prospect-${item.id}-${index}`
-}
+                  `prospect-${item.id}-${index}`
+                }
                 renderItem={renderProspect}
                 refreshing={refreshing}
                 onRefresh={onRefresh}
@@ -1388,28 +1760,12 @@ export default function LeadScreen() {
             {/* LEFT SIDE TEXT */}
             <View style={{ maxWidth: "60%" }}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: "#111" }}>
-                Suspects Leads
+                Client Leads
               </Text>
               <Text style={{ fontSize: 12, color: "#777", marginTop: 2 }}>
-                Qualified leads with complete information
+                Converted and revenue generating leads
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.addBtn}
-              onPress={() => {
-                setClientForm({
-                  name: "",
-                  phone: "",
-                  city: "",
-                  address: "",
-                  prospect_lead_id: 0,
-                });
-                setClientModal(true);
-              }}
-            >
-              <Ionicons name="add" size={16} color="#fff" />
-              <Text style={styles.addBtnText}>Add Client</Text>
-            </TouchableOpacity>
           </View>
 
           <ScrollView horizontal>
@@ -1417,12 +1773,16 @@ export default function LeadScreen() {
               <View style={styles.headerRow}>
                 <Text style={styles.header}>ID</Text>
                 <Text style={styles.header}>Name</Text>
-                <Text style={styles.header}>Company</Text>
+                <Text style={styles.header}>City</Text>
                 <Text style={styles.header}>Phone</Text>
-                <Text style={styles.header}>Status</Text>
+                <Text style={styles.header}>Assigned User</Text>
+                <Text style={styles.header}>Account Manager</Text>
+                <Text style={styles.header}>Latest Activity</Text>
+                <Text style={styles.header}>Total Revenue</Text>
+                <Text style={styles.header}>Date</Text>
               </View>
 
-              <FlatList data={clients} renderItem={renderClient}
+              <FlatList data={applyFilters(clients)} renderItem={renderClient}
                 keyExtractor={(item) => `client-${item.id}`}
                 refreshing={refreshing}
                 onRefresh={onRefresh} />
@@ -1657,23 +2017,23 @@ export default function LeadScreen() {
       </Modal>
 
       {(selectedSuspect || selectedProspect) && (
-  <SuspectActivityModal
-    key={`activity-${(selectedSuspect || selectedProspect).id}`}
-    visible={activityModal}
-    suspect={selectedSuspect || selectedProspect}
-    leadType={selectedSuspect ? "Suspect" : "Prospect"}
-    onClose={(shouldRefresh = false) => {
-      setActivityModal(false);
-      setSelectedSuspect(null);
-      setSelectedProspect(null);
+        <SuspectActivityModal
+          key={`activity-${(selectedSuspect || selectedProspect).id}`}
+          visible={activityModal}
+          suspect={selectedSuspect || selectedProspect}
+          leadType={selectedSuspect ? "Suspect" : "Prospect"}
+          onClose={(shouldRefresh = false) => {
+            setActivityModal(false);
+            setSelectedSuspect(null);
+            setSelectedProspect(null);
 
-      if (shouldRefresh) {
-        loadSuspects();
-        loadProspects();
-      }
-    }}
-  />
-)}
+            if (shouldRefresh) {
+              loadSuspects();
+              loadProspects();
+            }
+          }}
+        />
+      )}
 
       <Modal
         visible={activityHistoryModal}
@@ -2004,5 +2364,54 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "500",
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
 
+  searchInput: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+
+  filterIcon: {
+    marginLeft: 10,
+    padding: 10,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 10,
+  },
+
+  filterBox: {
+    backgroundColor: "#fff",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    elevation: 3,
+  },
+
+  filterOption: {
+    paddingVertical: 8,
+    fontWeight: "600",
+  },
+  activityDropdownBox: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    marginBottom: 12,
+    elevation: 5,
+    maxHeight: 150, // 👈 Only 3 items visible
+    paddingVertical: 8,
+  },
+
+  activityItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
 });

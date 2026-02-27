@@ -2,11 +2,13 @@ import { Slot } from "expo-router";
 import React, { useState } from "react";
 import { TouchableOpacity, View } from "react-native";
 import Sidebar from "../components/CustomDrawer"; // <-- update path if different
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function DrawerLayout() {
   const [open, setOpen] = useState(false);
 
   return (
+    <SafeAreaView style={{ flex: 1 }}>
     <View style={{ flex: 1 }}>
       {/* Top Menu Button */}
       <TouchableOpacity
@@ -24,5 +26,6 @@ export default function DrawerLayout() {
       {/* Main Content */}
       <Slot />
     </View>
+    </SafeAreaView>
   );
 }

@@ -1,67 +1,110 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useEffect, useState } from "react";
-
 import {
-  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import 'react-native-gesture-handler';
-
-const { width } = Dimensions.get("window");
+const BASE_URL = "https://sunvoracrm.berisphere.com";
 
 export default function DashboardScreen() {
   const [userName, setUserName] = useState("");
+  const [prospectCount, setProspectCount] = useState<number>(0);
+  const [suspectCount, setSuspectCount] = useState<number>(0);
+  const [clientCount, setClientCount] = useState<number>(0);
   const router = useRouter();
+  const totalLeads = prospectCount + suspectCount + clientCount;
+  useEffect(() => {
+    const loadUser = async () => {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return;
+
+      const res = await fetch(
+        "https://sunvoracrm.berisphere.com/users/me",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!res.ok) return;
+
+      const json = await res.json();
+
+      const firstName = json?.data?.personal_details?.first_name;
+      const lastName = json?.data?.personal_details?.last_name;
+
+      if (firstName && lastName) {
+        setUserName(`${firstName} ${lastName}`);
+      } else {
+        setUserName("User");
+      }
+    };
+
+    loadUser();
+  }, []);
 
   useEffect(() => {
-  const loadUser = async () => {
-    const token = await AsyncStorage.getItem("token");
-    if (!token) return;
+    const loadCounts = async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+        if (!token) return;
 
-    const res = await fetch(
-      "https://sunvoracrm.berisphere.com/users/me",
-      {
-        headers: { Authorization: `Bearer ${token}` },
+        const fetchCount = async (type: string) => {
+          const res = await fetch(
+            `${BASE_URL}/crm/get-lead/${type}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({}), // remove if not required
+            }
+          );
+
+          if (!res.ok) {
+            console.log(`${type} API failed`, res.status);
+            return 0;
+          }
+
+          const json = await res.json();
+          return json?.data?.count ?? 0;
+        };
+
+        const [prospects, suspects, clients] = await Promise.all([
+          fetchCount("Prospect"),
+          fetchCount("Suspect"),
+          fetchCount("Client"),
+        ]);
+
+        setProspectCount(prospects);
+        setSuspectCount(suspects);
+        setClientCount(clients);
+
+      } catch (error) {
+        console.log("Error fetching dashboard counts:", error);
       }
-    );
+    };
 
-    if (!res.ok) return;
-
-    const json = await res.json();
-
-    const firstName = json?.data?.personal_details?.first_name;
-    const lastName = json?.data?.personal_details?.last_name;
-
-    if (firstName && lastName) {
-      setUserName(`${firstName} ${lastName}`);
-    } else {
-      setUserName("User");
-    }
-  };
-
-  loadUser();
-}, []);
-
-
+    loadCounts();
+  }, []);
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+
       {/* Top Header */}
-      
       <View style={styles.topHeader}>
-        <TouchableOpacity
-          onPress={() => router.push("/(drawer)")}
-          style={{ marginRight: 12 }}
-        >
+        <TouchableOpacity onPress={() => router.push("/(drawer)")}>
           <Ionicons name="menu" size={28} color="#333" />
         </TouchableOpacity>
+
         <Text style={styles.dashboardTitle}>Dashboard</Text>
+
         <Ionicons name="notifications-outline" size={24} color="#333" />
       </View>
 
@@ -74,73 +117,92 @@ export default function DashboardScreen() {
         </Text>
       </View>
 
-      {/* Statistics Cards */}
-      <View style={styles.statRow}>
-        <StatCard
-          icon="people"
+      {/* Leads Section */}
+      <View style={styles.leadsContainer}>
+        <LeadCard
+          icon="people-outline"
           color="#3B82F6"
-          value="130"
-          label="Total Employees"
-          change="+8.2%"
+          title="Total Leads"
+          value={totalLeads}
+          onPress={() =>
+            router.push({
+              pathname: "/(drawer)/(tabs)/crm/lead",
+              params: { type: "All" },
+            })
+          }
         />
-        <StatCard
-          icon="currency-rupee"
+
+        <LeadCard
+          icon="trending-up-outline"
           color="#10B981"
-          value="$235K"
-          label="Monthly Revenue"
-          change="+12.5%"
+          title="Prospects"
+          value={prospectCount}
+          onPress={() =>
+            router.push({
+              pathname: "/(drawer)/(tabs)/crm/lead",
+              params: { type: "Prospect" },
+            })
+          }
         />
-      </View>
 
-      <View style={styles.statRow}>
-        <StatCard
-          icon="cube"
-          color="#EC4899"
-          value="290"
-          label="Inventory Items"
-          change="-3.1%"
+        <LeadCard
+          icon="call-outline"
+          color="#8B5CF6"
+          title="Suspects"
+          value={suspectCount}
+          onPress={() =>
+            router.push({
+              pathname: "/(drawer)/(tabs)/crm/lead",
+              params: { type: "Suspect" },
+            })
+          }
         />
-        <StatCard
-          icon="briefcase"
+
+        <LeadCard
+          icon="business-outline"
+          color="#06B6D4"
+          title="Clients"
+          value={clientCount}
+          onPress={() =>
+            router.push({
+              pathname: "/(drawer)/(tabs)/crm/lead",
+              params: { type: "Client" },
+            })
+          }
+        />
+
+        <LeadCard
+          icon="checkbox-outline"
+          color="#EF4444"
+          title="Tasks"
+          value="0"
+          onPress={() =>
+            router.push("/(drawer)/(tabs)/task")
+          }
+        />
+
+        <LeadCard
+          icon="cash-outline"
           color="#F97316"
-          value="12"
-          label="Active Projects"
-          change="+5.4%"
+          title="Total Value"
+          value="$440K"
         />
-      </View>
-
-      {/* Quick Actions */}
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-
-      <View style={styles.quickCard}>
-        <QuickAction title="New Employee" count="24" />
-        <QuickAction title="Pending Invoices" count="12" />
-        <QuickAction title="Low Stock Alert" count="8" />
-        <QuickAction title="Active Leads" count="45" />
       </View>
     </ScrollView>
   );
 }
 
-const StatCard = ({ icon, color, value, label, change }) => (
-  <View style={styles.statCard}>
-    <View style={[styles.iconCircle, { backgroundColor: color + "20" }]}>
-      <Ionicons name={icon} size={26} color={color} />
+/* Lead Card Component */
+const LeadCard = ({ icon, color, title, value, onPress }: any) => (
+  <TouchableOpacity style={styles.leadCard} onPress={onPress}>
+    <View style={[styles.leadIconBox, { backgroundColor: color + "20" }]}>
+      <Ionicons name={icon} size={22} color={color} />
     </View>
-    <View style={styles.statInfo}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-    <View style={styles.statBadge}>
-      <Text style={styles.statBadgeText}>{change}</Text>
-    </View>
-  </View>
-);
 
-const QuickAction = ({ title, count }) => (
-  <TouchableOpacity style={styles.quickItem}>
-    <Text style={styles.quickText}>{title}</Text>
-    <Text style={styles.quickCount}>{count}</Text>
+    <View style={{ flex: 1, marginLeft: 12 }}>
+      <Text style={styles.leadTitle}>{title}</Text>
+      <Text style={styles.leadValue}>{value}</Text>
+    </View>
   </TouchableOpacity>
 );
 
@@ -149,10 +211,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
     paddingHorizontal: 16,
-    paddingTop: 15,
+    paddingTop: 20,
   },
 
-  // Header
+  /* Header */
   topHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -166,87 +228,63 @@ const styles = StyleSheet.create({
     color: "#111",
   },
 
-  // Welcome Banner
+  /* Welcome Card */
   welcomeCard: {
     backgroundColor: "#2563EB",
     padding: 18,
     borderRadius: 18,
     marginBottom: 20,
   },
-  welcomeText: { color: "#E0ECFF", fontSize: 15 },
-  welcomeUser: { color: "#fff", fontSize: 22, fontWeight: "700", marginTop: 2 },
-  welcomeSub: { color: "#DCE7FF", marginTop: 6 },
-
-  // Stats
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  welcomeText: {
+    color: "#E0ECFF",
+    fontSize: 15,
   },
-  statCard: {
-    width: "48%",
+  welcomeUser: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  welcomeSub: {
+    color: "#DCE7FF",
+    marginTop: 6,
+  },
+
+  /* Leads */
+  leadsContainer: {
+    marginTop: 5,
+  },
+
+  leadCard: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 16,
     padding: 14,
-    marginBottom: 16,
+    borderRadius: 14,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 5,
-    elevation: 3,
-    position: "relative",
+    shadowRadius: 4,
+    elevation: 2,
   },
-  iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+
+  leadIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
-  statInfo: { marginTop: 10 },
-  statValue: { fontSize: 20, fontWeight: "800", color: "#111" },
-  statLabel: { fontSize: 13, color: "#555", marginTop: 2 },
-  statBadge: {
-    position: "absolute",
-    top: 14,
-    right: 14,
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  statBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#4F46E5",
+
+  leadTitle: {
+    fontSize: 13,
+    color: "#666",
   },
 
-  // Quick Actions
-  sectionTitle: {
+  leadValue: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111",
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 2,
   },
-  quickCard: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 5,
-    elevation: 3,
-    marginBottom: 50,
-  },
-  quickItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
-  },
-  quickText: { fontSize: 15, color: "#333" },
-  quickCount: { fontSize: 15, fontWeight: "700", color: "#2563EB" },
 });
-

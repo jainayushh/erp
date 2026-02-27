@@ -42,6 +42,18 @@ export default function LeaveManagement() {
         reason: "",
     });
 
+    const totalLeaves = leaves.length;
+
+    const casualLeaves = leaves.filter(
+        (l) => l.leave_type.toLowerCase() === "casual"
+    ).length;
+
+    const sickLeaves = leaves.filter(
+        (l) => l.leave_type.toLowerCase() === "sick"
+    ).length;
+
+
+
     useEffect(() => {
         fetchLeaves();
     }, []);
@@ -246,7 +258,29 @@ export default function LeaveManagement() {
             >
                 <Text style={styles.applyText}>+ Apply Leave</Text>
             </TouchableOpacity>
+            {/* 📊 Leave Summary */}
+            <View style={styles.summaryCard}>
+                <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>Total Leaves:</Text>
+                    <Text style={styles.summaryValue}>
+                        {totalLeaves}
+                    </Text>
+                </View>
 
+                <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>Casual Leaves:</Text>
+                    <Text style={styles.summaryValue}>
+                        {casualLeaves}
+                    </Text>
+                </View>
+
+                <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>Sick Leaves:</Text>
+                    <Text style={styles.summaryValue}>
+                        {sickLeaves}
+                    </Text>
+                </View>
+            </View>
             <FlatList
                 data={leaves}
                 keyExtractor={(item) => String(item.id)}
@@ -448,5 +482,32 @@ const styles = StyleSheet.create({
         color: "#777",
         marginTop: 10,
     },
+    summaryCard: {
+        backgroundColor: "#f8f9fa",
+        borderRadius: 14,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
+        marginBottom: 16,
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        elevation: 2,
+    },
 
+    summaryItem: {
+        alignItems: "center",
+    },
+
+    summaryLabel: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#1e3a8a",
+    },
+
+    summaryValue: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#111",
+        marginTop: 4,
+    },
 });

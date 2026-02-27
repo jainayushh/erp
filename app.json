@@ -1,45 +1,34 @@
 {
   "expo": {
-    "name": "erp",
+    "name": "Berisphere ERP",
     "slug": "erp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/berisphere-logo.png",
     "scheme": "erp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "package": "com.jain_20539.erp",
-      "permissions": ["INTERNET"],
-
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-
+      "permissions": [
+        "INTERNET"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
-
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/berisphere-logo.png"
     },
-
     "plugins": [
       "expo-router",
-
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/berisphere-logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -48,9 +37,7 @@
           }
         }
       ],
-
       "expo-web-browser",
-
       [
         "expo-build-properties",
         {
@@ -68,19 +55,16 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
+    "owner": "jain_20539",
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c4200d7c-5ac9-4cad-a434-3e914808e81f"
+        "projectId": "35c65b21-a76c-440b-bfa6-b60095f7e8b3"
       }
-    },
-
-    "owner": "jain_20539"
+    }
   }
 }

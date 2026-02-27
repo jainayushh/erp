@@ -72,7 +72,7 @@ export default function ProfileScreen() {
         >
           <Ionicons name="menu" size={28} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.dashboardTitle}>Simplify</Text>
+        <Text style={styles.dashboardTitle}>Berisphere</Text>
         <Ionicons name="notifications-outline" size={24} color="#333" />
       </View>
 

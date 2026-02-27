@@ -148,7 +148,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           {crmOpen && (
             <View style={styles.submenu}>
               <SubItem label="Lead Management" onPress={() => goTo("/(drawer)/(tabs)/crm/lead")} />
-              <SubItem label="Quotation" onPress={() => goTo("/components/Quotations")} />
+              <SubItem label="Quotation" onPress={() => goTo("/(drawer)/(tabs)/Quotations")} />
             </View>
           )}
 
