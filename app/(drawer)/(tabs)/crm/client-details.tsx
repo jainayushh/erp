@@ -11,7 +11,9 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Platform } from "react-native";
 const BASE_URL = "https://sunvoracrm.berisphere.com";
 
 export default function ClientDetailsScreen() {
@@ -21,14 +23,21 @@ export default function ClientDetailsScreen() {
     const [payments, setPayments] = useState<any[]>([]);
     const [loadingPayments, setLoadingPayments] = useState(false);
     const [addPaymentModal, setAddPaymentModal] = useState(false);
-
+    const [showPicker, setShowPicker] = useState(false);
+    const [dateMode, setDateMode] = useState<"date" | "time">("date");
     const [paymentForm, setPaymentForm] = useState({
         amount: "",
         payment_method: "",
         payment_status: "Pending",
         reference_id: "",
         notes: "",
-        payment_date: "",
+        payment_date: null as Date | null,
+    });
+    const [expanded, setExpanded] = useState({
+        client: true,
+        project: true,
+        services: true,
+        payments: true,
     });
     const Section = ({ title, children }: any) => (
         <View style={{ marginBottom: 16 }}>
@@ -43,20 +52,26 @@ export default function ClientDetailsScreen() {
             <Text style={styles.rowValue}>{value || "-"}</Text>
         </View>
     );
+    const toggleSection = (key: string) => {
+        setExpanded((prev) => ({
+            ...prev,
+            [key]: !prev[key],
+        }));
+    };
     const formatDateTime = (date?: string) => {
-  if (!date) return "-";
+        if (!date) return "-";
 
-  const d = new Date(date);
+        const d = new Date(date);
 
-  return d.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
+        return d.toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+        });
+    };
 
     const submitPayment = async () => {
         try {
@@ -69,7 +84,9 @@ export default function ClientDetailsScreen() {
                 payment_status: paymentForm.payment_status,
                 reference_id: paymentForm.reference_id,
                 notes: paymentForm.notes,
-                payment_date: paymentForm.payment_date,
+                payment_date: paymentForm.payment_date
+                    ? paymentForm.payment_date.toISOString()
+                    : null,
             };
 
             await axios.post(`${BASE_URL}/payments/`, payload, {
@@ -86,64 +103,66 @@ export default function ClientDetailsScreen() {
                 payment_date: "",
             });
 
-            loadPayments(); // refresh table
+            loadClient(); // Refresh client details to get updated payments
 
         } catch (err) {
             console.log("❌ Add Payment Error", err);
         }
     };
     const loadClient = async () => {
-  try {
-    const token = await AsyncStorage.getItem("token");
-
-    const res = await axios.get(
-      `${BASE_URL}/crm/client/${clientId}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-
-    console.log("✅ Client Detail API:", res.data);
-
-    const data = res.data?.data || null;
-
-    setClient(data);
-
-  } catch (err: any) {
-    console.log("❌ Client Detail Error", err.response?.data || err.message);
-  }
-};
-
-    const loadPayments = async () => {
         try {
-            setLoadingPayments(true);
-
             const token = await AsyncStorage.getItem("token");
 
             const res = await axios.get(
-                `${BASE_URL}/payments?client_id=${clientId}`,
+                `${BASE_URL}/crm/client/${clientId}`,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
             );
 
-            console.log("Payment API Response:", res.data);
+            console.log("✅ Client Detail API:", res.data);
 
-            const list = res.data?.data?.data || [];
+            const data = res.data?.data || null;
 
-            console.log("Final Payments Array:", list);
+            setClient(data);
 
-            setPayments(Array.isArray(list) ? list : []);
+            // 🔥 IMPORTANT: set payments from client response
+            setPayments(Array.isArray(data?.payments) ? data.payments : []);
 
-        } catch (err) {
-            console.log("❌ Payment Load Error", err.response?.data || err.message);
-        } finally {
-            setLoadingPayments(false);
+        } catch (err: any) {
+            console.log("❌ Client Detail Error", err.response?.data || err.message);
         }
     };
+
+    // const loadPayments = async () => {
+    //     try {
+    //         setLoadingPayments(true);
+
+    //         const token = await AsyncStorage.getItem("token");
+
+    //         const res = await axios.get(
+    //             `${BASE_URL}/payments?client_id=${clientId}`,
+    //             {
+    //                 headers: { Authorization: `Bearer ${token}` },
+    //             }
+    //         );
+
+    //         console.log("Payment API Response:", res.data);
+
+    //         const list = res.data?.data?.data || [];
+
+    //         console.log("Final Payments Array:", list);
+
+    //         setPayments(Array.isArray(list) ? list : []);
+
+    //     } catch (err) {
+    //         console.log("❌ Payment Load Error", err.response?.data || err.message);
+    //     } finally {
+    //         setLoadingPayments(false);
+    //     }
+    // };
     useEffect(() => {
         loadClient();
-        loadPayments();   // 🔥 automatically load payments
     }, []);
 
     if (!client) return <Text style={{ padding: 20 }}>Loading...</Text>;
@@ -155,97 +174,150 @@ export default function ClientDetailsScreen() {
 
             {/* ================= CLIENT DETAILS ================= */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Client Details</Text>
-                <Text>ID: {client.id}</Text>
-                <Text>Name: {client.name}</Text>
-                <Text>Phone: {client.phone}</Text>
-                <Text>City: {client.city}</Text>
-                <Text>Address: {client.address}</Text>
-                <Text>Referred By: {client.referred_by}</Text>
-                <Text>Date: {formatDateTime(client.created_on)}</Text>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>Client Details</Text>
+
+                    <TouchableOpacity onPress={() => toggleSection("client")}>
+                        <TouchableOpacity
+                            onPress={() => toggleSection("client")}
+                            style={styles.iconBox}
+                        >
+                            <Ionicons
+                                name={expanded.client ? "chevron-up" : "chevron-down"}
+                                size={18}
+                                color="#000"
+                            />
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </View>
+                {expanded.client && (
+                    <>
+                        <Text>ID: {client.id}</Text>
+                        <Text>Name: {client.name}</Text>
+                        <Text>Phone: {client.phone}</Text>
+                        <Text>City: {client.city}</Text>
+                        <Text>Address: {client.address}</Text>
+                        <Text>Referred By: {client.referred_by}</Text>
+                        <Text>Date: {formatDateTime(client.created_on)}</Text>
+                        <Text>Due Date: {formatDateTime(client.due_date)}</Text>
+                    </>
+                )}
             </View>
 
             {/* ================= PROJECT DETAILS ================= */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Project Details</Text>
-
-                {/* PLAN */}
-                <Section title="Plan">
-                    <Row label="Plan Name" value={client.plan} />
-                    <Row label="Plan Cost" value={`₹ ${client.plan_cost}`} />
-                </Section>
-
-                {/* PROJECT SIZE */}
-                <Section title="Project Size">
-                    <Row label="Size" value={client.project_size} />
-                    <Row label="Size Cost" value={`₹ ${client.project_size_cost}`} />
-                </Section>
-
-                {/* PANEL */}
-                <Section title="Panel">
-                    <Row label="Manufacturer" value={client.pannel_manufacturer} />
-                    <Row label="Capacity" value={client.pannel_capacity} />
-                    <Row label="Type" value={client.pannel_type} />
-                    <Row label="Cost" value={`₹ ${client.pannel_cost}`} />
-                </Section>
-
-                {/* INVERTER */}
-                <Section title="Inverter">
-                    <Row label="Brand" value={client.inverter_brand} />
-                    <Row label="Capacity" value={client.inverter_capacity} />
-                    <Row label="Cost" value={`₹ ${client.inverter_cost}`} />
-                </Section>
-
-                {/* STRUCTURE */}
-                <Section title="Structure">
-                    <Row label="Type" value={client.structure_type} />
-                    <Row label="Size" value={client.structure} />
-                    <Row label="Cost" value={`₹ ${client.structure_cost}`} />
-                </Section>
-
-                {/* WIRE */}
-                <Section title="Wire">
-                    <Row label="Manufacturer" value={client.wire_manufacturer} />
-                    <Row label="Length" value={client.wire_length} />
-                    <Row label="Thickness" value={client.wire_thickness} />
-                    <Row label="Cost" value={`₹ ${client.wire_cost}`} />
-                </Section>
-
-                {/* AC/DC BOX */}
-                <Section title="AC/DC Box">
-                    <Row label="Box" value={client.ac_dc_box} />
-                    <Row label="Cost" value={`₹ ${client.ac_dc_box_cost}`} />
-                </Section>
-
-                {/* EARTHING */}
-                <Section title="Earthing">
-                    <Row label="Type" value={client.earthing} />
-                    <Row label="Cost" value={`₹ ${client.earthing_cost}`} />
-                </Section>
-
-                {/* CHEMICAL ANCHORING */}
-                <Section title="Chemical Anchoring">
-                    <Row label="Type" value={client.chemical_anchoring} />
-                    <Row label="Cost" value={`₹ ${client.chemical_anchoring_cost}`} />
-                </Section>
-
-                {/* TOTAL */}
-                <View style={styles.totalBox}>
-                    <Text style={styles.totalLabel}>Total Revenue</Text>
-                    <Text style={styles.totalValue}>
-                        ₹ {Number(client.total_cost).toLocaleString("en-IN")}
-                    </Text>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>Project Details</Text>
+                    <TouchableOpacity onPress={() => toggleSection("project")}>
+                        <TouchableOpacity
+                            onPress={() => toggleSection("project")}
+                            style={styles.iconBox}
+                        >
+                            <Ionicons
+                                name={expanded.project ? "chevron-up" : "chevron-down"}
+                                size={18}
+                                color="#000"
+                            />
+                        </TouchableOpacity>
+                    </TouchableOpacity>
                 </View>
+                {expanded.project && (
+                    <>
+                        {/* PLAN */}
+                        <Section title="Plan">
+                            <Row label="Plan Name" value={client.plan} />
+                            <Row label="Plan Cost" value={`₹ ${client.plan_cost}`} />
+                        </Section>
+
+                        {/* PROJECT SIZE */}
+                        <Section title="Project Size">
+                            <Row label="Size" value={client.project_size} />
+                            <Row label="Size Cost" value={`₹ ${client.project_size_cost}`} />
+                        </Section>
+
+                        {/* PANEL */}
+                        <Section title="Panel">
+                            <Row label="Manufacturer" value={client.pannel_manufacturer} />
+                            <Row label="Capacity" value={client.pannel_capacity} />
+                            <Row label="Type" value={client.pannel_type} />
+                            <Row label="Cost" value={`₹ ${client.pannel_cost}`} />
+                        </Section>
+
+                        {/* INVERTER */}
+                        <Section title="Inverter">
+                            <Row label="Brand" value={client.inverter_brand} />
+                            <Row label="Capacity" value={client.inverter_capacity} />
+                            <Row label="Cost" value={`₹ ${client.inverter_cost}`} />
+                        </Section>
+
+                        {/* STRUCTURE */}
+                        <Section title="Structure">
+                            <Row label="Type" value={client.structure_type} />
+                            <Row label="Size" value={client.structure} />
+                            <Row label="Cost" value={`₹ ${client.structure_cost}`} />
+                        </Section>
+
+                        {/* WIRE */}
+                        <Section title="Wire">
+                            <Row label="Manufacturer" value={client.wire_manufacturer} />
+                            <Row label="Length" value={client.wire_length} />
+                            <Row label="Thickness" value={client.wire_thickness} />
+                            <Row label="Cost" value={`₹ ${client.wire_cost}`} />
+                        </Section>
+
+                        {/* AC/DC BOX */}
+                        <Section title="AC/DC Box">
+                            <Row label="Box" value={client.ac_dc_box} />
+                            <Row label="Cost" value={`₹ ${client.ac_dc_box_cost}`} />
+                        </Section>
+
+                        {/* EARTHING */}
+                        <Section title="Earthing">
+                            <Row label="Type" value={client.earthing} />
+                            <Row label="Cost" value={`₹ ${client.earthing_cost}`} />
+                        </Section>
+
+                        {/* CHEMICAL ANCHORING */}
+                        <Section title="Chemical Anchoring">
+                            <Row label="Type" value={client.chemical_anchoring} />
+                            <Row label="Cost" value={`₹ ${client.chemical_anchoring_cost}`} />
+                        </Section>
+
+                        {/* TOTAL */}
+                        <View style={styles.totalBox}>
+                            <Text style={styles.totalLabel}>Total Revenue</Text>
+                            <Text style={styles.totalValue}>
+                                ₹ {Number(client.total_cost).toLocaleString("en-IN")}
+                            </Text>
+                        </View>
+                    </>)}
             </View>
 
             {/* ================= SERVICES ================= */}
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Services & Assignment</Text>
-                <Text>Service 1: {client.service_1 ? "Yes" : "No"}</Text>
-                <Text>Service 2: {client.service_2 ? "Yes" : "No"}</Text>
-                <Text>Service 3: {client.service_3 ? "Yes" : "No"}</Text>
-                <Text>Assigned User: {assignedUser}</Text>
-                <Text>Account Manager: {accountManager}</Text>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>Services & Assignment</Text>
+                    <TouchableOpacity onPress={() => toggleSection("services")}>
+                        <TouchableOpacity
+                            onPress={() => toggleSection("services")}
+                            style={styles.iconBox}
+                        >
+                            <Ionicons
+                                name={expanded.services ? "chevron-up" : "chevron-down"}
+                                size={18}
+                                color="#000"
+                            />
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </View>
+                {expanded.services && (
+                    <>
+                        <Text>Service 1: {client.service_1 ? "Yes" : "No"}</Text>
+                        <Text>Service 2: {client.service_2 ? "Yes" : "No"}</Text>
+                        <Text>Service 3: {client.service_3 ? "Yes" : "No"}</Text>
+                        <Text>Assigned User: {assignedUser}</Text>
+                        <Text>Account Manager: {accountManager}</Text>
+                    </>)}
             </View>
 
 
@@ -272,12 +344,13 @@ export default function ClientDetailsScreen() {
                         {/* 🔥 TABLE HEADER ALWAYS VISIBLE */}
                         <View style={styles.tableHeader}>
                             <Text style={styles.tableCell}>Sr</Text>
+                            <Text style={styles.tableCell}>Date</Text>
                             <Text style={styles.tableCell}>Amount</Text>
                             <Text style={styles.tableCell}>Method</Text>
                             <Text style={styles.tableCell}>Status</Text>
                             <Text style={styles.tableCell}>Transaction ID</Text>
                             <Text style={styles.tableCell}>Notes</Text>
-                            <Text style={styles.tableCell}>Date</Text>
+                            <Text style={styles.tableCell}>Remark</Text>
                         </View>
 
                         {/* 🔥 TABLE BODY */}
@@ -290,15 +363,16 @@ export default function ClientDetailsScreen() {
                                 <View key={index} style={styles.tableRow}>
                                     <Text style={styles.tableCell}>{index + 1}</Text>
                                     <Text style={styles.tableCell}>
+                                        {formatDateTime(p.payment_date)}
+                                    </Text>
+                                    <Text style={styles.tableCell}>
                                         ₹ {Number(p.amount || 0).toLocaleString("en-IN")}
                                     </Text>
                                     <Text style={styles.tableCell}>{p.payment_method}</Text>
                                     <Text style={styles.tableCell}>{p.payment_status}</Text>
                                     <Text style={styles.tableCell}>{p.reference_id}</Text>
                                     <Text style={styles.tableCell}>{p.notes}</Text>
-                                    <Text style={styles.tableCell}>
-                                        {formatDateTime(p.payment_date)}
-                                    </Text>
+                                    <Text style={styles.tableCell}>{p.remark_approver}</Text>
                                 </View>
                             ))
                         ) : (
@@ -337,14 +411,6 @@ export default function ClientDetailsScreen() {
                                 value={paymentForm.payment_method}
                                 onChangeText={(v) => setPaymentForm({ ...paymentForm, payment_method: v })}
                             />
-
-                            <Text>Status</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={paymentForm.payment_status}
-                                onChangeText={(v) => setPaymentForm({ ...paymentForm, payment_status: v })}
-                            />
-
                             <Text>Transaction ID</Text>
                             <TextInput
                                 style={styles.input}
@@ -359,13 +425,21 @@ export default function ClientDetailsScreen() {
                                 onChangeText={(v) => setPaymentForm({ ...paymentForm, notes: v })}
                             />
 
-                            <Text>Payment Date (ISO Format)</Text>
-                            <TextInput
+                            <Text>Payment Date & Time</Text>
+
+                            <TouchableOpacity
                                 style={styles.input}
-                                placeholder="2026-02-27T15:07:51.936Z"
-                                value={paymentForm.payment_date}
-                                onChangeText={(v) => setPaymentForm({ ...paymentForm, payment_date: v })}
-                            />
+                                onPress={() => {
+                                    setDateMode("date");
+                                    setShowPicker(true);
+                                }}
+                            >
+                                <Text>
+                                    {paymentForm.payment_date
+                                        ? formatDateTime(paymentForm.payment_date.toISOString())
+                                        : "Select Date & Time"}
+                                </Text>
+                            </TouchableOpacity>
 
                             <TouchableOpacity style={styles.saveBtn} onPress={submitPayment}>
                                 <Text style={{ color: "#fff", fontWeight: "700" }}>
@@ -384,6 +458,44 @@ export default function ClientDetailsScreen() {
                     </View>
                 </View>
             </Modal>
+            {showPicker && (
+                <DateTimePicker
+                    value={paymentForm.payment_date || new Date()}
+                    mode={dateMode}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={(event, selectedDate) => {
+                        if (event.type === "dismissed") {
+                            setShowPicker(false);
+                            return;
+                        }
+
+                        if (dateMode === "date") {
+                            const currentDate = selectedDate || new Date();
+                            setPaymentForm({
+                                ...paymentForm,
+                                payment_date: currentDate,
+                            });
+
+                            setDateMode("time");
+
+                            if (Platform.OS === "android") {
+                                setShowPicker(true);
+                            }
+                        } else {
+                            const finalDate =
+                                selectedDate || paymentForm.payment_date || new Date();
+
+                            setPaymentForm({
+                                ...paymentForm,
+                                payment_date: finalDate,
+                            });
+
+                            setShowPicker(false);
+                            setDateMode("date");
+                        }
+                    }}
+                />
+            )}
         </ScrollView>
     );
 }
@@ -521,5 +633,25 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 20,
         maxHeight: "85%",
+    },
+    cardHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 10,
+    },
+
+    toggleIcon: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#333",
+    },
+    iconBox: {
+        width: 32,
+        height: 32,
+        backgroundColor: "#e0e0e0",  // light grey
+        borderRadius: 6,
+        justifyContent: "center",
+        alignItems: "center",
     },
 });

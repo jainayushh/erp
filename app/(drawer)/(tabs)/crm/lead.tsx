@@ -5,7 +5,8 @@ import { router } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useLocalSearchParams } from "expo-router";
-
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Platform } from "react-native";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -38,38 +39,38 @@ const CLIENT_FIELDS = [
   { key: "phone", label: "Phone", type: "text" },
   { key: "city", label: "City", type: "text" },
   { key: "address", label: "Address", type: "text" },
+  { key: "due_date", label: "Due Date", type: "date" },
+  // { key: "plan", label: "Plan", type: "text" },
+  // { key: "plan_cost", label: "Plan Cost", type: "number" },
 
-  { key: "plan", label: "Plan", type: "text" },
-  { key: "plan_cost", label: "Plan Cost", type: "number" },
+  // { key: "project_size", label: "Project Size", type: "text" },
+  // { key: "project_size_cost", label: "Project Size Cost", type: "number" },
 
-  { key: "project_size", label: "Project Size", type: "text" },
-  { key: "project_size_cost", label: "Project Size Cost", type: "number" },
+  // { key: "pannel_manufacturer", label: "Panel Manufacturer", type: "text" },
+  // { key: "pannel_capacity", label: "Panel Capacity", type: "text" },
+  // { key: "pannel_type", label: "Panel Type", type: "text" },
+  // { key: "pannel_cost", label: "Panel Cost", type: "number" },
 
-  { key: "pannel_manufacturer", label: "Panel Manufacturer", type: "text" },
-  { key: "pannel_capacity", label: "Panel Capacity", type: "text" },
-  { key: "pannel_type", label: "Panel Type", type: "text" },
-  { key: "pannel_cost", label: "Panel Cost", type: "number" },
+  // { key: "inverter_brand", label: "Inverter Brand", type: "text" },
+  // { key: "inverter_capacity", label: "Inverter Capacity", type: "text" },
+  // { key: "inverter_cost", label: "Inverter Cost", type: "number" },
 
-  { key: "inverter_brand", label: "Inverter Brand", type: "text" },
-  { key: "inverter_capacity", label: "Inverter Capacity", type: "text" },
-  { key: "inverter_cost", label: "Inverter Cost", type: "number" },
+  // { key: "structure_type", label: "Structure Type", type: "text" },
+  // { key: "structure_cost", label: "Structure Cost", type: "number" },
 
-  { key: "structure_type", label: "Structure Type", type: "text" },
-  { key: "structure_cost", label: "Structure Cost", type: "number" },
+  // { key: "wire_manufacturer", label: "Wire Manufacturer", type: "text" },
+  // { key: "wire_length", label: "Wire Length", type: "text" },
+  // { key: "wire_thickness", label: "Wire Thickness", type: "text" },
+  // { key: "wire_cost", label: "Wire Cost", type: "number" },
 
-  { key: "wire_manufacturer", label: "Wire Manufacturer", type: "text" },
-  { key: "wire_length", label: "Wire Length", type: "text" },
-  { key: "wire_thickness", label: "Wire Thickness", type: "text" },
-  { key: "wire_cost", label: "Wire Cost", type: "number" },
+  // { key: "ac_dc_box", label: "AC/DC Box", type: "text" },
+  // { key: "ac_dc_box_cost", label: "AC/DC Box Cost", type: "number" },
 
-  { key: "ac_dc_box", label: "AC/DC Box", type: "text" },
-  { key: "ac_dc_box_cost", label: "AC/DC Box Cost", type: "number" },
+  // { key: "earthing", label: "Earthing", type: "text" },
+  // { key: "earthing_cost", label: "Earthing Cost", type: "number" },
 
-  { key: "earthing", label: "Earthing", type: "text" },
-  { key: "earthing_cost", label: "Earthing Cost", type: "number" },
-
-  { key: "chemical_anchoring", label: "Chemical Anchoring", type: "text" },
-  { key: "chemical_anchoring_cost", label: "Chemical Anchoring Cost", type: "number" },
+  // { key: "chemical_anchoring", label: "Chemical Anchoring", type: "text" },
+  // { key: "chemical_anchoring_cost", label: "Chemical Anchoring Cost", type: "number" },
 ];
 
 
@@ -84,7 +85,9 @@ const api = axios.create({
 const formatDateOnly = (date?: string) => {
   if (!date) return "-";
 
-  const d = new Date(date.endsWith("Z") ? date : `${date}Z`);
+  const d = new Date(date);   // ✅ remove Z logic
+
+  if (isNaN(d.getTime())) return "-";
 
   return d.toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -111,7 +114,7 @@ export default function LeadScreen() {
   const [suspects, setSuspects] = useState([]);
   const [clientModal, setClientModal] = useState(false);
 
-
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const [interestOptions, setInterestOptions] = useState<
     { label: string; value: string }[]
@@ -329,37 +332,37 @@ export default function LeadScreen() {
   };
 
   const applyFilters = (list: any[]) => {
-  let result = [...list];
+    let result = [...list];
 
-  // 🔎 SEARCH FILTER
-  if (search.trim()) {
-    const text = search.toLowerCase();
+    // 🔎 SEARCH FILTER
+    if (search.trim()) {
+      const text = search.toLowerCase();
 
-    result = result.filter((item) =>
-      String(item.id).toLowerCase().includes(text) ||
-      item.name?.toLowerCase().includes(text) ||
-      item.phone?.toLowerCase().includes(text)
-    );
-  }
+      result = result.filter((item) =>
+        String(item.id).toLowerCase().includes(text) ||
+        item.name?.toLowerCase().includes(text) ||
+        item.phone?.toLowerCase().includes(text)
+      );
+    }
 
-  // 🎯 ACTIVITY FILTER (REAL FILTERING)
-  if (selectedActivity) {
-    result = result.filter(
-      (item) => item.latest_activity_type === selectedActivity
-    );
-  }
+    // 🎯 ACTIVITY FILTER (REAL FILTERING)
+    if (selectedActivity) {
+      result = result.filter(
+        (item) => item.latest_activity_type === selectedActivity
+      );
+    }
 
-  // 🔽 DATE SORT
-  if (filterType === "Date") {
-    result.sort(
-      (a, b) =>
-        new Date(b.latest_activity_date || 0).getTime() -
-        new Date(a.latest_activity_date || 0).getTime()
-    );
-  }
+    // 🔽 DATE SORT
+    if (filterType === "Date") {
+      result.sort(
+        (a, b) =>
+          new Date(b.latest_activity_date || 0).getTime() -
+          new Date(a.latest_activity_date || 0).getTime()
+      );
+    }
 
-  return result;
-};
+    return result;
+  };
 
 
   const callNumber = (phone: string) => {
@@ -500,46 +503,51 @@ export default function LeadScreen() {
 
 
   const loadClients = async (activityType?: string) => {
-  try {
-    const payload: any = {
-      from_id: 1,
-      to_id: 99999,
-      assign_forward: false,
-    };
+    try {
+      const payload: any = {
+        from_id: 1,
+        to_id: 99999,
+        assign_forward: false,
+      };
 
-    if (activityType) {
-      payload.activity_type = activityType;
-    }
+      if (activityType) {
+        payload.activity_type = activityType;
+      }
 
-    const res = await api.post("/crm/get-lead/Client", payload);
+      const res = await api.post("/crm/get-lead/Client", payload);
 
-    const raw = res.data?.data?.data || [];
+      const raw = res.data?.data?.data || [];
 
-    const normalized = raw.map((c: any) => {
-      const latestActivity =
-        c.activities && c.activities.length
-          ? [...c.activities].sort(
+      const normalized = raw.map((c: any) => {
+        const latestActivity =
+          c.activities && c.activities.length
+            ? [...c.activities].sort(
               (a, b) =>
                 new Date(b.activity_date).getTime() -
                 new Date(a.activity_date).getTime()
             )[0]
-          : null;
+            : null;
 
-      return {
-        ...c,
-        latest_activity_type: latestActivity?.activity_type ?? null,
-        latest_activity_date: latestActivity?.activity_date ?? null,
-        next_follow_up: latestActivity?.next_follow_up ?? null,
-        assigned_user_name: `${c.assigned_user_first_name || ""} ${c.assigned_user_last_name || ""}`,
-        account_manager: `${c.assigned_user_first_name || ""} ${c.assigned_user_last_name || ""}`,
-      };
-    });
+        return {
+          ...c,
+          latest_activity_type: latestActivity?.activity_type ?? null,
+          latest_activity_date: latestActivity?.activity_date ?? null,
+          next_follow_up: latestActivity?.next_follow_up ?? null,
+          assigned_user_name: `${c.assigned_user_first_name || ""} ${c.assigned_user_last_name || ""}`,
+          account_manager: `${c.assigned_user_first_name || ""} ${c.assigned_user_last_name || ""}`,
+        };
+      });
 
-    setClients(normalized);
-  } catch (e: any) {
-    console.log("❌ Client Load Error:", e.response?.data || e.message);
-  }
-};
+      const uniqueClients = normalized.filter(
+        (client, index, self) =>
+          index === self.findIndex((c) => c.id === client.id)
+      );
+
+      setClients(uniqueClients);
+    } catch (e: any) {
+      console.log("❌ Client Load Error:", e.response?.data || e.message);
+    }
+  };
 
   const loadSuspects = async (activityType?: string) => {
     try {
@@ -1029,14 +1037,25 @@ export default function LeadScreen() {
         Alert.alert("Required", "Name and Phone are required");
         return;
       }
-
+      const totalCost =
+        Number(clientForm.plan_cost || 0) +
+        Number(clientForm.project_size_cost || 0) +
+        Number(clientForm.pannel_cost || 0) +
+        Number(clientForm.inverter_cost || 0) +
+        Number(clientForm.structure_cost || 0) +
+        Number(clientForm.wire_cost || 0) +
+        Number(clientForm.ac_dc_box_cost || 0) +
+        Number(clientForm.earthing_cost || 0) +
+        Number(clientForm.chemical_anchoring_cost || 0);
       const payload = {
         ...DEFAULT_CLIENT_VALUES, // 👈 auto-fill 25+ fields
         ...clientForm,            // 👈 overwrite editable ones
         prospect_lead_id: selectedProspect.id,
         referred_by: selectedProspect.referred_by_value || "social_media",
         interested_in: selectedProspect.interested_in || "solar",
+        total_cost: totalCost,
       };
+
 
       console.log("🚀 FINAL CLIENT PAYLOAD:", payload);
 
@@ -1303,38 +1322,38 @@ export default function LeadScreen() {
         {item.account_manager || "-"}
       </Text>
       <TouchableOpacity
-  style={styles.cell}
-  onPress={() => openActivityHistory(item, "Client")}
-  disabled={!item.activities?.length}
->
-  {item.latest_activity_type ? (
-    <View
-      style={{
-        backgroundColor: "#e3f2fd",
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        borderRadius: 10,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 12,
-          fontWeight: "700",
-          color: "#1565c0",
-          textTransform: "capitalize",
-        }}
+        style={styles.cell}
+        onPress={() => openActivityHistory(item, "Client")}
+        disabled={!item.activities?.length}
       >
-        {item.latest_activity_type.replaceAll("_", " ")}
-      </Text>
+        {item.latest_activity_type ? (
+          <View
+            style={{
+              backgroundColor: "#e3f2fd",
+              paddingHorizontal: 8,
+              paddingVertical: 6,
+              borderRadius: 10,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "700",
+                color: "#1565c0",
+                textTransform: "capitalize",
+              }}
+            >
+              {item.latest_activity_type.replaceAll("_", " ")}
+            </Text>
 
-      <Text style={{ fontSize: 10, marginTop: 2, color: "#555" }}>
-        {formatActivityDateTime(item.latest_activity_date)}
-      </Text>
-    </View>
-  ) : (
-    <Text style={{ color: "#999" }}>—</Text>
-  )}
-</TouchableOpacity>
+            <Text style={{ fontSize: 10, marginTop: 2, color: "#555" }}>
+              {formatActivityDateTime(item.latest_activity_date)}
+            </Text>
+          </View>
+        ) : (
+          <Text style={{ color: "#999" }}>—</Text>
+        )}
+      </TouchableOpacity>
 
       <Text style={[styles.cell, { fontWeight: "700", color: "#2e7d32" }]}>
         ₹ {Number(item.total_cost || 0).toLocaleString("en-IN")}
@@ -1342,6 +1361,9 @@ export default function LeadScreen() {
 
       <Text style={styles.cell}>
         {formatDateOnly(item.created_on)}
+      </Text>
+      <Text style={styles.cell}>
+        {formatDateOnly(item.due_date)}
       </Text>
     </View>
   );
@@ -1643,7 +1665,7 @@ export default function LeadScreen() {
       {/* ========== SUSPECTS ========== */}
       {tab === "suspects" && (
         <>
-        <View
+          <View
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
@@ -1661,22 +1683,22 @@ export default function LeadScreen() {
               </Text>
             </View>
           </View>
-        <ScrollView horizontal>
-          <View>
-            <View style={styles.headerRow}>
-              <Text style={styles.header}>ID</Text>
-              <Text style={styles.header}>Name</Text>
-              <Text style={styles.header}>Phone</Text>
-              <Text style={styles.header}>Latest Activity</Text>
-              <Text style={styles.header}>Action</Text>
-            </View>
+          <ScrollView horizontal>
+            <View>
+              <View style={styles.headerRow}>
+                <Text style={styles.header}>ID</Text>
+                <Text style={styles.header}>Name</Text>
+                <Text style={styles.header}>Phone</Text>
+                <Text style={styles.header}>Latest Activity</Text>
+                <Text style={styles.header}>Action</Text>
+              </View>
 
-            <FlatList data={applyFilters(suspects)} renderItem={renderSuspect}
-              keyExtractor={(item) => `suspect-${item.id}`}
-              refreshing={refreshing}
-              onRefresh={onRefresh} />
-          </View>
-        </ScrollView>
+              <FlatList data={applyFilters(suspects)} renderItem={renderSuspect}
+                keyExtractor={(item) => `suspect-${item.id}`}
+                refreshing={refreshing}
+                onRefresh={onRefresh} />
+            </View>
+          </ScrollView>
         </>
       )}
 
@@ -1719,7 +1741,7 @@ export default function LeadScreen() {
           <ScrollView horizontal>
             <View>
               <View style={styles.headerRow}>
-                <Text style={styles.header}>ID</Text> 
+                <Text style={styles.header}>ID</Text>
                 <Text style={styles.header}>Name</Text>
                 <Text style={styles.header}>Phone</Text>
                 <Text style={styles.header}>City</Text>
@@ -1780,6 +1802,7 @@ export default function LeadScreen() {
                 <Text style={styles.header}>Latest Activity</Text>
                 <Text style={styles.header}>Total Revenue</Text>
                 <Text style={styles.header}>Date</Text>
+                <Text style={styles.header}>Due Date</Text>
               </View>
 
               <FlatList data={applyFilters(clients)} renderItem={renderClient}
@@ -1983,18 +2006,60 @@ export default function LeadScreen() {
                 <View key={field.key}>
                   <Text style={styles.label}>{field.label}</Text>
 
-                  <TextInput
-                    style={styles.input}
-                    keyboardType={field.type === "number" ? "numeric" : "default"}
-                    value={String(clientForm[field.key] ?? "")}
-                    onChangeText={(v) =>
-                      setClientForm({
-                        ...clientForm,
-                        [field.key]:
-                          field.type === "number" ? Number(v) : v,
-                      })
-                    }
-                  />
+                  {field.key === "due_date" ? (
+                    <>
+                      <TouchableOpacity
+                        style={styles.input}
+                        onPress={() => setShowDatePicker(true)}
+                      >
+                        <Text>
+                          {clientForm.due_date
+                            ? formatDateOnly(clientForm.due_date)
+                            : "Select Due Date"}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {showDatePicker && (
+                        <DateTimePicker
+                          value={
+                            clientForm.due_date
+                              ? new Date(clientForm.due_date)
+                              : new Date()
+                          }
+                          mode="date"
+                          display="default"
+                          minimumDate={new Date()}   // ✅ DISABLE PAST DATES
+                          onChange={(event, selectedDate) => {
+                            setShowDatePicker(false);
+
+                            if (selectedDate) {
+                              const formattedDate = selectedDate
+                                .toISOString()
+                                .split("T")[0]; // YYYY-MM-DD
+
+                              setClientForm({
+                                ...clientForm,
+                                due_date: formattedDate,
+                              });
+                            }
+                          }}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <TextInput
+                      style={styles.input}
+                      keyboardType={field.type === "number" ? "numeric" : "default"}
+                      value={String(clientForm[field.key] ?? "")}
+                      onChangeText={(v) =>
+                        setClientForm({
+                          ...clientForm,
+                          [field.key]:
+                            field.type === "number" ? Number(v) : v,
+                        })
+                      }
+                    />
+                  )}
                 </View>
               ))}
 
